@@ -8,6 +8,7 @@ Purpose: To ultimately analyze full archives of users using NLP and whatever oth
 import snscrape.modules.twitter as sntwitter
 import pandas as pd
 from datetime import datetime
+from datetime import timedelta
 from dateutil.parser import parse
 import glob
 # from https://github.com/mehranshakarami/AI_Spectrum/blob/main/2022/snscrape/tweets.py
@@ -23,8 +24,6 @@ def get_tweets(user, max_tweets, last_date, first_date):
     Return: DataFrame of tweets and tweet metadata
     Note: Date objects are derived using X.strftime('%Y-%m-%d')
     '''
-    # query = "(from:cnnbrk) until:2022-09-13 since:2007-01-01"
-    # query = '(from:' + user + ') until:2022-09-13 since:2007-01-01'
     query = '(from:' + user + ') until:' + last_date + ' since:' + first_date
     tweets = []
     limit = max_tweets
@@ -53,6 +52,10 @@ users = users['user'].to_list()
 curr_files = glob.glob('../data/*')
 now = datetime.now()
 now = now.strftime('%Y-%m-%d')
+
+# 7 days before now
+first_date = datetime.now() - timedelta(days=7)
+first_date = first_date.strftime('%Y-%m-%d')
 
 for i in users:
     print(i)
@@ -87,7 +90,7 @@ for i in users:
 
     else: 
         print('User not detected in database')   
-        first = '2000-01-01'
+        first = first_date
         df = get_tweets(i, 10**9, now, first) 
     
     df.to_csv('../data/' + i + '_tweets_scraped.csv', encoding='utf-8-sig', index=False)
