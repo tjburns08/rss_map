@@ -7,7 +7,7 @@ import umap
 feed = feedparser.parse('https://news.google.com/rss/search?q=when:24h+allinurl:apnews.com&hl=en-US&gl=US&ceid=US:en')
 
 # Make a function out of this
-def rss_to_df(feed):
+def rss_to_df(feed, source):
     '''
     Description: Takes a feedparser object and converts it to a Pandas DataFrame
     Args:
@@ -20,6 +20,13 @@ def rss_to_df(feed):
         curr = pd.DataFrame({'title': entry.title, 'link': entry.link, 'published': entry.published}, index=[i])
         df = df.append(curr)
     df = df.reset_index(drop=True)
+    df['source'] = source
+
+    # Convert the published column to a datetime object
+    df['published'] = pd.to_datetime(df['published'])
+
+    # Fix the "- AP news - en español" at the end of the title
+    df['title'] = df['title'].str.replace(' - The Associated Press - en Español', '')
     return df
 
 # Transform the sentences
@@ -52,10 +59,12 @@ def make_umap(se):
 
 
 def main():
-    df = rss_to_df(feed)
+    df = rss_to_df(feed, 'AP News')
     se = transform_sentence(df)
     dimr = make_umap(se)
-    print(dimr)
+    df = pd.concat([df, dimr], axis=1) # We might add back in the embeddings later
+    df.to_csv('data/rss.csv', index=False)
+    print(df['published'])
 
 if __name__ == '__main__':
     main()
