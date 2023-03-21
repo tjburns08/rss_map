@@ -119,7 +119,6 @@ app.layout = html.Div([
 def click(clickData):
     if not clickData:
         return
-    print(clickData)
     entry = clickData['points'][0]['customdata'][1]
     filtered_df = df_sub[df_sub['title'] == entry]
     filtered_df['title'] = [re.sub('<br>', ' ', i) for i in filtered_df['title']]
@@ -170,9 +169,9 @@ def update_plot(source_value, n_clicks, input_value):
 
 
     if(source_value == 'all_users'):
-        fig = px.scatter(tmp, x = 'umap1', y = 'umap2', hover_data = ['published', 'title'], size_max = 10, title = 'Compare user mode')
+        fig = px.scatter(tmp, x = 'umap1', y = 'umap2', hover_data = ['published', 'title'], size_max = 10, color = 'source', title = 'Compare user mode', template = 'plotly_dark')
     else:
-        fig = px.scatter(tmp, x = 'umap1', y = 'umap2', hover_data = ['published', 'title'], size_max = 10, title = 'Context similarity map of tweets')
+        fig = px.scatter(tmp, x = 'umap1', y = 'umap2', hover_data = ['published', 'title'], size_max = 10, color = 'source', title = 'Context similarity map of tweets', template = 'plotly_dark')
     
 
     # DarkSlateGrey

@@ -1,11 +1,16 @@
+# coding=utf-8
 import feedparser
 import pandas as pd
 from sentence_transformers import SentenceTransformer
 import umap
 
 # This is AP News at the moment, but can add multiple RSS feeds
-feed = feedparser.parse('https://news.google.com/rss/search?q=when:24h+allinurl:apnews.com&hl=en-US&gl=US&ceid=US:en')
-
+# TODO make this a feed list
+ap = feedparser.parse('https://news.google.com/rss/search?q=when:24h+allinurl:apnews.com&hl=en-US&gl=US&ceid=US:en')
+bb = feedparser.parse('https://news.google.com/rss/search?q=when:24h+allinurl:bloomberg.com&hl=en-US&gl=US&ceid=US:en')
+hn = feedparser.parse('https://hnrss.org/best')
+lw = feedparser.parse('https://www.lesswrong.com/feed.xml')
+ 
 # Make a function out of this
 def rss_to_df(feed, source):
     '''
@@ -59,7 +64,17 @@ def make_umap(se):
 
 
 def main():
-    df = rss_to_df(feed, 'AP News')
+    # Convert the RSS feeds to a single data frame
+    ap_df = rss_to_df(ap, 'AP News')
+    bb_df = rss_to_df(bb, 'Bloomberg')
+    hn_df = rss_to_df(hn, 'Hacker News')
+    lw_df = rss_to_df(lw, 'Less Wrong')
+    df = ap_df.append(bb_df)
+    df = df.append(hn_df)
+    df = df.append(lw_df)
+    df = df.reset_index(drop=True)
+
+    # Process the data
     se = transform_sentence(df)
     dimr = make_umap(se)
     df = pd.concat([df, dimr], axis=1) # We might add back in the embeddings later
