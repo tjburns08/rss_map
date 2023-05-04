@@ -70,8 +70,6 @@ users.append('all_users')
 df = df[df['title'].notnull()] 
 df = df[df['published'].notnull()] 
 
-# NOTE some of the tweets are repeats. We need to get rid of these. 
-
 # We have the url in markdown format, so it only shows up as a hyperlink
 df['link'] = ['[Go to story]' + '(' + i + ')' for i in df['link']]
 
@@ -83,13 +81,15 @@ fig = px.scatter() # The map
 app.layout = html.Div([
     html.A(html.P('We are solving the scrolling problem!'), href="https://tjburns08.github.io/scrolling_problem.html"),
     dcc.Dropdown(users, id='user-dropdown', value = users[0]),
-    # dcc.Dropdown(['Today', 'Last 7 days', 'All years'] + list(range(2022, 2006, -1)), id='year-dropdown', value='Last 7 days'),
-    dcc.Textarea(
+    dcc.Input(
+        type='text',
         placeholder='Type keywords separated by AND or OR',
-        id = 'user-input',
+        id='user-input',
         value='',
-        style={'width': '100%'}
+        style={'width': '100%'},
+        debounce=True
     ),
+
     html.Button('Submit', id='value-enter'),
     dcc.Graph(
         id='news-map',
@@ -103,11 +103,21 @@ app.layout = html.Div([
 
     html.Div(html.P(['', html.Br(), ''])),
     html.Plaintext('The total feed'),
-    dash_table.DataTable(data = df_sub.to_dict('records'), style_data={
-        'whiteSpace': 'normal',
-        'height': 'auto',
-    }, id='top-table', fill_width = False, columns=[{'id': x, 'name': x, 'presentation': 'markdown'} if x == 'link' else {'id': x, 'name': x} for x in df_sub.columns])
-
+    html.Div(id='row-count'),
+    dash_table.DataTable(data=df_sub.head(10).to_dict('records'),
+                     style_data={
+                         'whiteSpace': 'normal',
+                         'height': 'auto',
+                     },
+                     id='top-table',
+                     fill_width=False,
+                     columns=[{'id': x, 'name': x, 'presentation': 'markdown'} if x == 'link' else {'id': x, 'name': x} for x in df_sub.columns],
+                     page_size=10,  # Show 10 rows per page
+                     sort_action='native',  # Enable sorting
+                     page_action='native',  # Enable pagination
+                     filter_action='native',  # Enable searching
+                     ),
+    dcc.Store(id='filtered-data')
 ])
 
 # This allows the user to click on a point on the map and get a single entry corresponding to that article
@@ -128,59 +138,78 @@ def click(clickData):
 # This updates the "top tweets" table every time the year dropdown changes
 @app.callback(
     Output('top-table', 'data'),
-    Input('value-enter', 'n_clicks'),
-    # Input('year-dropdown', 'value'),
-    State('user-input', 'value'))
-
-def update_table(n_clicks, input_value):
-    
-    # TODO do we put the "df" object itself as input to this function?
-    # TODO filtered_df = df_sub?
-    filtered_df = df # Make local variable. There might be a less ugly way to do this.
-    
-    if filtered_df.shape[0] == 0:
+    Input('filtered-data', 'data'),
+    Input('user-dropdown', 'value'))
+def update_table(filtered_data, source_value):
+    if not filtered_data:
         return
-    
-    rel_rows = []
-    for i in filtered_df['title']:
-        rel_rows.append(search_bar(input_value, i))
 
-    # Re-initialize df_sub given our df has been filtered above
-    # TODO to this in a less ugly way please
-    filtered_df_sub = filtered_df[['link', 'source', 'published', 'title']]
-    filtered_df_sub = filtered_df_sub[rel_rows]
-    return filtered_df_sub.to_dict('records')
+    filtered_df = pd.DataFrame(filtered_data)
+
+    if source_value != 'all_users':
+        filtered_df = filtered_df[filtered_df['source'] == source_value]
+
+    return filtered_df.to_dict('records')
+
 
 # This updates the map given the dropdowns and the value entered into the search bar
 # TODO change news-map
-@app.callback(  
+@app.callback(
+    Output('filtered-data', 'data'),
     Output('news-map', 'figure'),
-    Input('user-dropdown', 'value'), 
+    Input('user-dropdown', 'value'),
     Input('value-enter', 'n_clicks'),
     State('user-input', 'value'))
-
 def update_plot(source_value, n_clicks, input_value):
     user_context = callback_context.triggered[0]['prop_id'].split('.')[0]
     tmp = df
 
-    # Right now we're getting "none" as source value
-    if(source_value != 'all_users'):
+    if source_value != 'all_users':
         tmp = df[df['source'] == source_value]
 
-
-    if(source_value == 'all_users'):
-        fig = px.scatter(tmp, x = 'umap1', y = 'umap2', hover_data = ['published', 'title'], size_max = 10, color = 'source', title = 'Compare user mode', template = 'plotly_dark')
+    if source_value == 'all_users':
+        fig = px.scatter(tmp, x='umap1', y='umap2', hover_data=['published', 'title'], size_max=10, color='source', title='Compare user mode', template='plotly_dark')
     else:
-        fig = px.scatter(tmp, x = 'umap1', y = 'umap2', hover_data = ['published', 'title'], size_max = 10, color = 'source', title = 'Context similarity map of tweets', template = 'plotly_dark')
-    
+        fig = px.scatter(tmp, x='umap1', y='umap2', hover_data=['published', 'title'], size_max=10, color='source', title='Context similarity map of tweets', template='plotly_dark')
 
-    # DarkSlateGrey
-    fig.update_traces(marker=dict(line=dict(width=0.1,
-                                        color='DarkSlateGrey')),
-                  selector=dict(mode='markers'))
+    fig.update_traces(marker=dict(line=dict(width=0.1, color='DarkSlateGrey')), selector=dict(mode='markers'))
 
-    return(fig)
+    if input_value:  # Check if input_value is not empty
+        rel_rows = [search_bar(input_value, title) for title in tmp['title']]
+        tmp = tmp[rel_rows]
 
+        if source_value == 'all_users':
+            fig = px.scatter(tmp, x='umap1', y='umap2', hover_data=['published', 'title'], size_max=10, color='source', title='Compare user mode', template='plotly_dark')
+        else:
+            fig = px.scatter(tmp, x='umap1', y='umap2', hover_data=['published', 'title'], size_max=10, color='source', title='Context similarity map of tweets', template='plotly_dark')
+
+        fig.update_traces(marker=dict(line=dict(width=0.1, color='DarkSlateGrey')), selector=dict(mode='markers'))
+
+    # Set the range_x and range_y to the default coordinates
+    default_x_range = [df['umap1'].min(), df['umap1'].max()]
+    default_y_range = [df['umap2'].min(), df['umap2'].max()]
+
+    fig.update_xaxes(range=default_x_range)
+    fig.update_yaxes(range=default_y_range)
+
+    # Store the filtered DataFrame in the dcc.Store component
+    filtered_data = tmp[['link', 'source', 'published', 'title']].to_dict('records')
+
+    return filtered_data, fig
+
+
+
+
+@app.callback(
+    Output('row-count', 'children'),
+    Input('top-table', 'derived_virtual_data')  
+)
+def update_row_count(data):
+    if data is None:
+        row_count = 0
+    else:
+        row_count = len(data)
+    return f"Total rows: {row_count}"
 
 
 if __name__ == '__main__':
