@@ -64,7 +64,7 @@ df = pd.read_csv('data/rss.csv', lineterminator='\n')
 
 # This is for the per-user dropdown menu initialized later in the code
 users = list(set(df['source']))
-users.append('all_users')
+users.insert(0, 'all_users')
 
 # NULL or NaN gets added to the rows sometimes upstream. Have not figured out why.
 df = df[df['title'].notnull()] 
@@ -74,7 +74,7 @@ df = df[df['published'].notnull()]
 df['link'] = ['[Go to story]' + '(' + i + ')' for i in df['link']]
 
 # We get rid of unnecessary columns for downstream processing
-df_sub = df[['link', 'source', 'published', 'title']]
+df_sub = df[['link', 'source', 'published', 'title', 'sentiment']]
 
 # This is the layout of the page. We are using various objects available within Dash. 
 fig = px.scatter() # The map
@@ -91,6 +91,14 @@ app.layout = html.Div([
     ),
 
     html.Button('Submit', id='value-enter'),
+    html.Div(style={'height': '20px'}), # Checkbox is too close to the search button
+    dcc.Checklist(
+        options=[
+            {'label': 'Color by sentiment', 'value': 'sentiment'}
+        ],
+        id='color-by-sentiment',
+        value=[]
+    ),
     dcc.Graph(
         id='news-map',
         figure=fig
@@ -159,18 +167,27 @@ def update_table(filtered_data, source_value):
     Output('news-map', 'figure'),
     Input('user-dropdown', 'value'),
     Input('value-enter', 'n_clicks'),
+    Input('color-by-sentiment', 'value'),
     State('user-input', 'value'))
-def update_plot(source_value, n_clicks, input_value):
+def update_plot(source_value, n_clicks, color_by_sentiment, input_value):
     user_context = callback_context.triggered[0]['prop_id'].split('.')[0]
     tmp = df
+
+    color_scale = {
+        'negative': '#EF553B',
+        'neutral': '#636EFA',
+        'positive': '#00CC96'
+    }
+
+    color_column = 'sentiment' if 'sentiment' in color_by_sentiment else 'source'
 
     if source_value != 'all_users':
         tmp = df[df['source'] == source_value]
 
     if source_value == 'all_users':
-        fig = px.scatter(tmp, x='umap1', y='umap2', hover_data=['published', 'title'], size_max=10, color='source', title='Compare user mode', template='plotly_dark')
+        fig = px.scatter(tmp, x='umap1', y='umap2', hover_data=['published', 'title', 'sentiment'], size_max=10, color=color_column, color_discrete_map=color_scale, title='Compare user mode', template='plotly_dark')
     else:
-        fig = px.scatter(tmp, x='umap1', y='umap2', hover_data=['published', 'title'], size_max=10, color='source', title='Context similarity map of tweets', template='plotly_dark')
+        fig = px.scatter(tmp, x='umap1', y='umap2', hover_data=['published', 'title', 'sentiment'], size_max=10, color=color_column, color_discrete_map=color_scale, title='Context similarity map of tweets', template='plotly_dark')
 
     fig.update_traces(marker=dict(line=dict(width=0.1, color='DarkSlateGrey')), selector=dict(mode='markers'))
 
@@ -179,9 +196,9 @@ def update_plot(source_value, n_clicks, input_value):
         tmp = tmp[rel_rows]
 
         if source_value == 'all_users':
-            fig = px.scatter(tmp, x='umap1', y='umap2', hover_data=['published', 'title'], size_max=10, color='source', title='Compare user mode', template='plotly_dark')
+            fig = px.scatter(tmp, x='umap1', y='umap2', hover_data=['published', 'title', 'sentiment'], size_max=10, color=color_column, color_discrete_map=color_scale, title='Compare user mode', template='plotly_dark')
         else:
-            fig = px.scatter(tmp, x='umap1', y='umap2', hover_data=['published', 'title'], size_max=10, color='source', title='Context similarity map of tweets', template='plotly_dark')
+            fig = px.scatter(tmp, x='umap1', y='umap2', hover_data=['published', 'title', 'sentiment'], size_max=10, color=color_column, color_discrete_map=color_scale, title='Context similarity map of tweets', template='plotly_dark')
 
         fig.update_traces(marker=dict(line=dict(width=0.1, color='DarkSlateGrey')), selector=dict(mode='markers'))
 
@@ -193,11 +210,9 @@ def update_plot(source_value, n_clicks, input_value):
     fig.update_yaxes(range=default_y_range)
 
     # Store the filtered DataFrame in the dcc.Store component
-    filtered_data = tmp[['link', 'source', 'published', 'title']].to_dict('records')
+    filtered_data = tmp[['link', 'source', 'published', 'title', 'sentiment']].to_dict('records')
 
     return filtered_data, fig
-
-
 
 
 @app.callback(

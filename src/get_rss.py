@@ -3,6 +3,7 @@ import feedparser
 import pandas as pd
 from sentence_transformers import SentenceTransformer
 import umap
+from transformers import pipeline
 
 # This is AP News at the moment, but can add multiple RSS feeds
 # TODO make this a feed list
@@ -62,6 +63,37 @@ def make_umap(se):
     dimr = pd.DataFrame(dimr, columns = ['umap1', 'umap2'])
     return dimr
 
+# Get sentiment analysis from the titles
+def get_sentiment(df, colname='title'):
+    '''
+    Description: Takes in a data frame and performs sentiment analysis on the column of interest. 
+    Args:
+        df: Data frame
+        colname: Column name of interest
+    Returns: A data frame of the sentiment analysis
+    '''
+    # Sentiment analysis
+    #tokenizer = AutoTokenizer.from_pretrained("cardiffnlp/twitter-roberta-base-sentiment-latest")
+    #model_path = AutoModelForSequenceClassification.from_pretrained("cardiffnlp/twitter-roberta-base-sentiment-latest")
+    model_path = "cardiffnlp/twitter-roberta-base-sentiment-latest"
+    sentiment_task = pipeline("sentiment-analysis", model=model_path, tokenizer=model_path)
+
+    # Same but for the tweets in the df
+    # Sentiment is time consuming.
+    count = 0
+    sentiment_label = []
+    # sentiment_score = []
+
+    for i in df[colname]:
+        count += 1
+        if count % 1000 == 0:
+            print(str(count) + ' tweets processed for senteiment')
+        sentiment_label.append(sentiment_task(i)[0]['label'])
+        # sentiment_score.append(sentiment_task(i)[0]['score'])
+
+    # df['sentiment_label'] = sentiment_label
+    # df['sentiment_score'] = sentiment_score
+    return sentiment_label
 
 def main():
     # Convert the RSS feeds to a single data frame
@@ -75,6 +107,7 @@ def main():
     df = df.reset_index(drop=True)
 
     # Process the data
+    df['sentiment'] = get_sentiment(df)
     se = transform_sentence(df)
     dimr = make_umap(se)
     df = pd.concat([df, dimr], axis=1) # We might add back in the embeddings later
