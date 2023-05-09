@@ -16,5 +16,7 @@ The default opml file contains a handful of RSS feeds to get you started.
 Place your opml file into the "data" folder. Name it "rss-subscriptions.opml." Then follow the aforementioned steps.
 
 ## Example
-Here is an image of a "rss map" that you get.
+Here is an image of an interactive "rss map" that you get as output.
+![example map output](./docs/images/map_example.png)
+
 
